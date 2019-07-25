@@ -16,9 +16,9 @@
 export default {
   props: {
     src: String,
-    fadeTime: {
+    moveDisabledTime: {
       type: Number,
-      default: () => 300
+      default: () => 200
     },
     maxScale: {
       type: Number,
@@ -42,15 +42,16 @@ export default {
       scale: 1,
       lastX: null,
       lastY: null,
-      lastZoomScale: null,
-      inDrag: false
+      inDrag: false,
+      lastTouchDistance: 0,
+      moveDisabled: false,
+      disabledTimer: null
     };
   },
   mounted() {
     this.classList.forEach(className =>
       this.$refs.container.classList.add(className)
     );
-    this.$refs.imgex.style.transitionDuration = `${this.fadeTime / 1000}s`;
   },
   methods: {
     mousedownStart(event) {
@@ -68,15 +69,11 @@ export default {
       this.inDrag = false;
       event.preventDefault();
     },
-    touchStart() {
+    touchStart(event) {
       this.lastX = null;
       this.lastY = null;
-      this.lastZoomScale = null;
-    },
-    zoom(event) {
-      this.scale += event.deltaY * -this.step;
-      this.scale = Math.min(Math.max(this.minScale, this.scale), this.maxScale);
-      this.$refs.imgex.style.transform = `scale(${this.scale})`;
+      this.lastTouchDistance = null;
+      event.preventDefault();
     },
     zoomAuto(event) {
       switch (this.scale) {
@@ -101,12 +98,35 @@ export default {
         this.lastY = event.targetTouches[0].pageY;
         return;
       }
+      let step = this.$refs.imgex.width / 5;
       if (event.targetTouches.length === 2) {
-        let zoom = this.gesturePinchZoom(event);
-        this.$refs.imgex.style.transform = `scale(${zoom})`;
+        this.moveDisabled = true;
+        clearTimeout(this.disabledTimer);
+        this.disabledTimer = setTimeout(
+          () => (this.moveDisabled = false),
+          this.moveDisabledTime
+        );
+
+        let p1 = event.targetTouches[0];
+        let p2 = event.targetTouches[1];
+        let touchDistance = Math.sqrt(
+          Math.pow(p2.pageX - p1.pageX, 2) + Math.pow(p2.pageY - p1.pageY, 2)
+        );
+        if (!this.lastTouchDistance) {
+          this.lastTouchDistance = touchDistance;
+          return;
+        }
+        this.scale =
+          this.scale + (touchDistance - this.lastTouchDistance) / step;
+        this.scale = this.scale < this.minScale ? this.minScale : this.scale;
+        this.scale = this.scale > this.maxScale ? this.maxScale : this.scale;
+        this.lastTouchDistance = touchDistance;
+        this.$refs.imgex.style.transform = `scale(${this.scale})`;
       } else if (event.targetTouches.length === 1) {
+        if (this.moveDisabled) return;
         let x = event.targetTouches[0].pageX - this.lastX;
         let y = event.targetTouches[0].pageY - this.lastY;
+        if (Math.abs(x) >= step && Math.abs(y) >= step) return;
         this.lastX = event.targetTouches[0].pageX;
         this.lastY = event.targetTouches[0].pageY;
         this.doMove(x, y);
@@ -116,22 +136,6 @@ export default {
       let style = this.$refs.imgex.style;
       style.left = `${+style.left.replace("px", "") + x}px`;
       style.top = `${+style.top.replace("px", "") + y}px`;
-    },
-    gesturePinchZoom: function(event) {
-      let zoom = 1;
-      if (event.targetTouches.length >= 2) {
-        let p1 = event.targetTouches[0];
-        let p2 = event.targetTouches[1];
-        let zoomScale = Math.sqrt(
-          Math.pow(p2.pageX - p1.pageX, 2) + Math.pow(p2.pageY - p1.pageY, 2)
-        ); //euclidian distance
-
-        if (this.lastZoomScale) {
-          zoom = zoomScale - this.evtData.lastZoomScale;
-        }
-        this.lastZoomScale = zoomScale;
-      }
-      return zoom;
     }
   }
 };
@@ -148,6 +152,5 @@ export default {
   width: 100%;
   top: 0;
   left: 0;
-  transition: all ease-in;
 }
 </style>
