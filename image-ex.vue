@@ -9,7 +9,7 @@
     @mousemove="mouseMove"
     @mouseup="mouseUp"
   >
-    <img :src="src" class="image-ex-img" ref="imgex">
+    <img :src="src" class="image-ex-img" ref="imgex" @load="setCenter">
   </div>
 </template>
 <script>
@@ -35,6 +35,10 @@ export default {
     step: {
       type: Number,
       default: () => 0.05
+    },
+    autofill: {
+      type: Boolean,
+      default: () => false
     }
   },
   data() {
@@ -49,11 +53,37 @@ export default {
     };
   },
   mounted() {
-    this.classList.forEach(className =>
-      this.$refs.container.classList.add(className)
-    );
+    let container = this.$refs.container;
+    this.classList.forEach(className => container.classList.add(className));
+    // set width and height if they are zero
+    if (getComputedStyle(container).width === "0px") {
+      container.style.width = "100%";
+    }
+    if (getComputedStyle(container).height === "0px") {
+      container.style.height = "100%";
+    }
   },
   methods: {
+    setCenter() {
+      let container = this.$refs.container;
+      let img = this.$refs.imgex;
+
+      let rate = Math.min(
+        container.clientWidth / img.clientWidth,
+        container.clientHeight / img.clientHeight
+      );
+      if (!this.autofill && rate > 1) {
+        rate = 1;
+      }
+      // height will be auto set
+      img.width = Math.floor(img.clientWidth * rate);
+      img.style.top = `${Math.floor(
+        (container.clientHeight - img.clientHeight) / 2
+      )}px`;
+      img.style.left = `${Math.floor(
+        (container.clientWidth - img.clientWidth) / 2
+      )}px`;
+    },
     mousedownStart(event) {
       this.lastX = null;
       this.lastY = null;
@@ -134,8 +164,11 @@ export default {
     },
     doMove(x, y) {
       let style = this.$refs.imgex.style;
-      style.left = `${+style.left.replace("px", "") + x}px`;
-      style.top = `${+style.top.replace("px", "") + y}px`;
+      style.left = `${this.pxStringToNumber(style.left) + x}px`;
+      style.top = `${this.pxStringToNumber(style.top) + y}px`;
+    },
+    pxStringToNumber(style) {
+      return +style.replace("px", "");
     }
   }
 };
@@ -149,7 +182,6 @@ export default {
 
 .image-ex-img {
   position: absolute;
-  width: 100%;
   top: 0;
   left: 0;
 }
